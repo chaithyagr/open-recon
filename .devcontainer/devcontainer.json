@@ -9,10 +9,18 @@
 			"docker.io/kspacekelvin/fire-python-devcon",
 			"docker.io/kspacekelvin/fire-python:buildcache"]
 	},
-
-	// Use to enable local GPUs in container if available
-	// "runArgs": [ "--gpus=all" ],
-
+	"runArgs": [
+        "--gpus=all",
+        "--net", "host",
+        "-e", "DISPLAY=${env:DISPLAY}",
+        "-e", "XAUTHORITY=/tmp/.Xauthority",
+        "-v", "${localEnv:HOME}/.Xauthority:/tmp/.Xauthority",
+        "--privileged"
+    ],
+    
+    "mounts": [
+        "type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix,consistency=cached"
+    ],
 	// Use appPort to "publish" a port to the host machine. Compared to forwardPorts,
 	// appPort allows connections from non-localhost
 	"appPort": ["9020:9020"],
@@ -25,10 +33,13 @@
 		"vscode": {
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
-				"ms-python.debugpy",
 				"ms-python.python",
-				"ms-python.vscode-pylance",
-				"ms-toolsai.jupyter"
+                "ms-vscode.cpptools",
+                "ms-vscode.makefile-tools",
+                "github.vscode-pull-request-github",
+                "github.copilot",
+                "zxh404.vscode-proto3",
+                "ms-python.debugpy"
 			],
 
 			"settings": { 

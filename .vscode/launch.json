@@ -12,6 +12,7 @@
             "program": "${workspaceFolder}/main.py",
             "args": [
                 "-p", "9020",
+                "-d", "sparkling",
                 // "-v",
                 // "-s"
             ],
@@ -27,9 +28,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/client.py",
             "args": [
-                "${workspaceFolder}/data/shepplogan_raw.mrd",
+                "${workspaceFolder}/data/test.mrd",
                 "-p", "9020",
-                "-c", "invertcontrast",
+                "-c", "sparkling",
                 "-o", "${workspaceFolder}/data/shepplogan_recon.mrd"
             ],
             "console": "integratedTerminal",

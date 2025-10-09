@@ -4,10 +4,10 @@ ARG  DEBIAN_FRONTEND=noninteractive
 ENV  TZ=America/Chicago
 
 RUN  apt-get update && apt-get install -y git cmake g++ libhdf5-dev libxml2-dev libxslt1-dev libboost-all-dev libfftw3-dev libpugixml-dev
-RUN  mkdir -p /opt/code
+
 
 # ISMRMRD library
-RUN cd /opt/code && \
+RUN mkdir -p /opt/code && cd /opt/code && \
     git clone https://github.com/ismrmrd/ismrmrd.git && \
     cd ismrmrd && \
     git checkout d364e03 && \
@@ -32,7 +32,7 @@ RUN cd /opt/code && \
 RUN cd /usr/local/lib && tar -czvf libismrmrd.tar.gz libismrmrd*
 
 # ----- 2. Create a devcontainer without all of the build dependencies of MRD -----
-FROM python:3.12.0-slim AS python-mrd-devcontainer
+FROM pytorch/pytorch:2.6.0-cuda11.8-cudnn9-devel AS python-mrd-devcontainer
 
 LABEL org.opencontainers.image.description="Python MRD Image Reconstruction and Analysis Server"
 LABEL org.opencontainers.image.url="https://github.com/kspaceKelvin/python-ismrmrd-server"
@@ -63,9 +63,11 @@ RUN cd /opt/code && \
     cd /opt/code/ismrmrd-python-tools && \
     pip3 install --no-cache-dir .
 
+ADD / /mars/
+
 # matplotlib is used by rgb.py and provides various visualization tools including colormaps
 # pydicom is used by dicom2mrd.py to parse DICOM data
-RUN pip3 install --no-cache-dir matplotlib==3.8.2 pydicom==3.0.1
+RUN pip3 install --no-cache-dir matplotlib==3.8.2 pydicom==3.0.1 cupy-cuda11x mri-nufft gpuNUFFT scikit-image joblib git+https://github.com/mind-inria/ggrappa
 
 # Cleanup files not required after installation
 RUN apt-get clean && \
