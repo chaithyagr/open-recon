@@ -43,6 +43,7 @@ def do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_maker
         sig=torch.tensor(gridded_center).permute(0, 2, 3, 1),
         acs=torch.tensor(acs).permute(0, 2, 3, 1) if acs is not None else None,
         isGolfSparks=True,
+        cuda=False,
     )
     grappa_recon = grappa_recon.permute(0, 3, 1, 2).numpy()
     extra_loc, extra_data = get_grappa_filled_data_and_loc(gridded_center, grappa_recon, traj_params)
@@ -83,7 +84,9 @@ def accumulate_and_shift_acs(acquisition):
     max_part_enc = 0
     acs_data = []
     for acq in acquisition:
-        if acq.is_flag_set(ismrmrd.ACQ_IS_PARALLEL_CALIBRATION):
+        if acq is None:
+            break
+        elif acq.is_flag_set(ismrmrd.ACQ_IS_PARALLEL_CALIBRATION):
             if acq.idx.kspace_encode_step_1 > max_phase_enc:
                 max_phase_enc = acq.idx.kspace_encode_step_1 + 1
             if acq.idx.kspace_encode_step_2 > max_part_enc:
@@ -224,6 +227,9 @@ def process(connection, config, mrdHeader):
         for shift in ['ShiftInReadout', 'ShiftInPhase', 'ShiftInSlice']
     ])
     vol_shape = (RawMatX, RawMatY, NoOfSlice)
+    
+    vol_shape = (RawMatX, 240, NoOfSlice)
+    fov = (0.256, 0.24, 0.176)
     Kmax = np.array(vol_shape)/2/np.array(fov)
 
     logging.info("--->")
@@ -251,7 +257,7 @@ def process(connection, config, mrdHeader):
     logging.info("<---")
 
     trajectory, traj_params = read_trajectory(
-        os.path.join('/workspaces/open-recon/data', get_user_param(ParString, 'GradientFilename')),
+        os.path.join('/opt/code/python-ismrmrd-server/data', get_user_param(ParString, 'GradientFilename')),
         dwell_time=DEFAULT_RASTER_TIME/OSFactor,
         num_adc_samples=int(NoOfReadoutSamples),
     )
@@ -303,8 +309,8 @@ def process(connection, config, mrdHeader):
         grappa_reconstructor = partial(GRAPPA_Recon, grappa_recon_spec=grappa_recon_kernels)
         kspace_loc, kspace_data = do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_reconstructor)
     
-    fourier_op = get_operator("gpunufft")(
-        kspace_loc,
+    fourier_op = get_operator("finufft")(
+        kspace_loc.astype(np.float32),
         vol_shape,
         n_coils=kspace_data.shape[0],
         density=density_comp,

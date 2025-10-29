@@ -23,7 +23,7 @@ defaults = {
     'outfile':            None,
     'out_group':          str(datetime.datetime.now()),
     'config':             'invertcontrast',
-    'config_local':       '',
+    'config_local':       '', 
     'ignore_json_config': False,
     'send_waveforms':     False,
     'verbose':            False,

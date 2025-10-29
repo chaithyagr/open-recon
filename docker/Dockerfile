@@ -32,7 +32,7 @@ RUN cd /opt/code && \
 RUN cd /usr/local/lib && tar -czvf libismrmrd.tar.gz libismrmrd*
 
 # ----- 2. Create a devcontainer without all of the build dependencies of MRD -----
-FROM pytorch/pytorch:2.6.0-cuda11.8-cudnn9-devel AS python-mrd-devcontainer
+FROM  python:3.12.0-slim AS python-mrd-devcontainer
 
 LABEL org.opencontainers.image.description="Python MRD Image Reconstruction and Analysis Server"
 LABEL org.opencontainers.image.url="https://github.com/kspaceKelvin/python-ismrmrd-server"
@@ -55,7 +55,11 @@ RUN mkdir -p /opt/code
 # Tell nano to remember its position from the last time it opened a file
 RUN echo "set positionlog" > ~/.nanorc
 
+RUN pip3 install cupy-cuda11x git+https://github.com/mind-inria/mri-nufft@chaithyagr-patch-1 finufft gpuNUFFT scikit-image joblib git+https://github.com/mind-inria/ggrappa
+
 # Python MRD library
+RUN pip3 install --no-cache-dir matplotlib==3.8.2 pydicom==3.0.1 
+
 RUN pip3 install h5py==3.10.0 ismrmrd==1.14.1
 
 RUN cd /opt/code && \
@@ -63,11 +67,6 @@ RUN cd /opt/code && \
     cd /opt/code/ismrmrd-python-tools && \
     pip3 install --no-cache-dir .
 
-ADD / /mars/
-
-# matplotlib is used by rgb.py and provides various visualization tools including colormaps
-# pydicom is used by dicom2mrd.py to parse DICOM data
-RUN pip3 install --no-cache-dir matplotlib==3.8.2 pydicom==3.0.1 cupy-cuda11x mri-nufft gpuNUFFT scikit-image joblib git+https://github.com/mind-inria/ggrappa
 
 # Cleanup files not required after installation
 RUN apt-get clean && \
@@ -105,9 +104,9 @@ RUN find /opt/code/python-ismrmrd-server -name "*.sh" -exec chmod +x {} \;
 # Set the starting directory so that code can use relative paths
 WORKDIR /opt/code/python-ismrmrd-server
 
-CMD [ "python3", "/opt/code/python-ismrmrd-server/main.py", "-v", "-H=0.0.0.0", "-p=9002", "-l=/tmp/python-ismrmrd-server.log", "--defaultConfig=invertcontrast"]
+#CMD [ "python3", "/opt/code/python-ismrmrd-server/main.py", "-v", "-H=0.0.0.0", "-p=9002", "-l=/tmp/python-ismrmrd-server.log", "--defaultConfig=sparkling"]
+CMD [ "/bin/bash", "-c", "/usr/sbin/ldconfig", "&&", "python3", "/opt/code/python-ismrmrd-server/main.py", "-v", "-H=0.0.0.0", "-p=9002", "-l=/tmp/python-ismrmrd-server.log", "--defaultConfig=sparkling"]
 
 # Replace the above CMD with this ENTRYPOINT to allow allow "docker stop"
 # commands to be passed to the server.  This is useful for deployments, but
 # more annoying for development
-# ENTRYPOINT [ "python3", "/opt/code/python-ismrmrd-server/main.py", "-v", "-H=0.0.0.0", "-p=9002", "-l=/tmp/python-ismrmrd-server.log"]

@@ -18,7 +18,7 @@
             ],
             "console": "integratedTerminal",
             "consoleTitle": "Server",
-            "justMyCode": true,
+            "justMyCode": false,
         },
 
         // Run client
@@ -35,7 +35,7 @@
             ],
             "console": "integratedTerminal",
             "consoleTitle": "Client",
-            "justMyCode": true,
+            "justMyCode": false,
         },
     ],
     "compounds":
