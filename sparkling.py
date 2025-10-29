@@ -228,8 +228,6 @@ def process(connection, config, mrdHeader):
     ])
     vol_shape = (RawMatX, RawMatY, NoOfSlice)
     
-    vol_shape = (RawMatX, 240, NoOfSlice)
-    fov = (0.256, 0.24, 0.176)
     Kmax = np.array(vol_shape)/2/np.array(fov)
 
     logging.info("--->")

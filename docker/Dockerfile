@@ -55,7 +55,8 @@ RUN mkdir -p /opt/code
 # Tell nano to remember its position from the last time it opened a file
 RUN echo "set positionlog" > ~/.nanorc
 
-RUN pip3 install cupy-cuda11x git+https://github.com/mind-inria/mri-nufft@chaithyagr-patch-1 finufft gpuNUFFT scikit-image joblib git+https://github.com/mind-inria/ggrappa
+RUN pip3 install torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip3 install git+https://github.com/mind-inria/mri-nufft@chaithyagr-patch-1 finufft scikit-image joblib git+https://github.com/mind-inria/ggrappa
 
 # Python MRD library
 RUN pip3 install --no-cache-dir matplotlib==3.8.2 pydicom==3.0.1 
