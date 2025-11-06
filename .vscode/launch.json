@@ -28,10 +28,10 @@
             "request": "launch",
             "program": "${workspaceFolder}/client.py",
             "args": [
-                "${workspaceFolder}/data/test.mrd",
+                "/opt/code/python-ismrmrd-server/data/test.mrd",
                 "-p", "9020",
                 "-c", "sparkling",
-                "-o", "${workspaceFolder}/data/shepplogan_recon.mrd"
+                "-o", "/opt/code/python-ismrmrd-server/data/out.mrd"
             ],
             "console": "integratedTerminal",
             "consoleTitle": "Client",

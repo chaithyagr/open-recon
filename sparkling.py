@@ -30,7 +30,7 @@ from ggrappa.grappaND import GRAPPA_Recon
 import torch
 from ggrappa.utils import get_cart_portion_sparkling, get_grappa_filled_data_and_loc
 
-def do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_maker, acs=None):
+def do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_maker, acs=None, recon_hw="cpu"):
     kspace_shots = kspace_loc.reshape(traj_params['num_shots'], -1, traj_params['dimension'])
     gridded_center, new_kspace_data, new_kspace_loc = get_cart_portion_sparkling(kspace_shots, traj_params, kspace_data)
     if acs is not None:
@@ -43,7 +43,7 @@ def do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_maker
         sig=torch.tensor(gridded_center).permute(0, 2, 3, 1),
         acs=torch.tensor(acs).permute(0, 2, 3, 1) if acs is not None else None,
         isGolfSparks=True,
-        cuda=False,
+        cuda=recon_hw=="gpu",
     )
     grappa_recon = grappa_recon.permute(0, 3, 1, 2).numpy()
     extra_loc, extra_data = get_grappa_filled_data_and_loc(gridded_center, grappa_recon, traj_params)
@@ -213,6 +213,11 @@ def process(connection, config, mrdHeader):
     RecoMatX    = mrdHeader.encoding[0].reconSpace.matrixSize.x
     RecoMatY    = mrdHeader.encoding[0].reconSpace.matrixSize.y
 
+    try:
+        recon_hw = config['parameters']['recon_hw']
+    except:
+        recon_hw = "cpu"
+
     fov = (
         mrdHeader.encoding[0].reconSpace.fieldOfView_mm.x / 1000,
         mrdHeader.encoding[0].reconSpace.fieldOfView_mm.y / 1000,
@@ -241,6 +246,7 @@ def process(connection, config, mrdHeader):
     logging.info("Num. of spokes   : "+str(NoOfSpokes))
     logging.info("Num. of samples  : "+str(NoOfReadoutSamples))
     logging.info("OS factor        : "+str(OSFactor))
+    logging.info("Recon HW        : "+str(recon_hw))
     # ------ printing user parameters -----
     logging.info("User parameters long")
     for k in range(len(ParLong)):
@@ -304,9 +310,9 @@ def process(connection, config, mrdHeader):
     kspace_data = np.ascontiguousarray(kspace_data.reshape(kspace_data.shape[0], -1))
     if np.prod(af) > 1:
         grappa_reconstructor = partial(GRAPPA_Recon, grappa_recon_spec=grappa_recon_kernels)
-        kspace_loc, kspace_data = do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_reconstructor)
+        kspace_loc, kspace_data = do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_reconstructor, recon_hw=recon_hw)
     
-    fourier_op = get_operator("fiunufft")(
+    fourier_op = get_operator("finufft" if recon_hw == "cpu" else "gpunufft")(
         kspace_loc.astype(np.float32),
         vol_shape,
         n_coils=kspace_data.shape[0],
