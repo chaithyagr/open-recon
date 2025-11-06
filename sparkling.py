@@ -43,6 +43,7 @@ def do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_maker
         sig=torch.tensor(gridded_center).permute(0, 2, 3, 1),
         acs=torch.tensor(acs).permute(0, 2, 3, 1) if acs is not None else None,
         isGolfSparks=True,
+        cuda=False,
     )
     grappa_recon = grappa_recon.permute(0, 3, 1, 2).numpy()
     extra_loc, extra_data = get_grappa_filled_data_and_loc(gridded_center, grappa_recon, traj_params)
@@ -305,7 +306,7 @@ def process(connection, config, mrdHeader):
         grappa_reconstructor = partial(GRAPPA_Recon, grappa_recon_spec=grappa_recon_kernels)
         kspace_loc, kspace_data = do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_reconstructor)
     
-    fourier_op = get_operator("gpunufft")(
+    fourier_op = get_operator("fiunufft")(
         kspace_loc.astype(np.float32),
         vol_shape,
         n_coils=kspace_data.shape[0],
