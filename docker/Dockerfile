@@ -32,7 +32,7 @@ RUN cd /opt/code && \
 RUN cd /usr/local/lib && tar -czvf libismrmrd.tar.gz libismrmrd*
 
 # ----- 2. Create a devcontainer without all of the build dependencies of MRD -----
-FROM  python:3.12.0-slim AS python-mrd-devcontainer
+FROM  pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime AS python-mrd-devcontainer
 
 LABEL org.opencontainers.image.description="Python MRD Image Reconstruction and Analysis Server"
 LABEL org.opencontainers.image.url="https://github.com/kspaceKelvin/python-ismrmrd-server"
@@ -49,14 +49,13 @@ RUN cd /usr/local/lib && tar -zxvf libismrmrd.tar.gz && rm libismrmrd.tar.gz && 
 COPY --from=mrd_converter /usr/local/bin/siemens_to_ismrmrd  /usr/local/bin/siemens_to_ismrmrd
 
 # Add dependencies for siemens_to_ismrmrd
-RUN apt-get update && apt-get install --no-install-recommends -y libxslt1.1 libhdf5-103 libboost-program-options1.74.0 libpugixml1v5 git dos2unix nano
+RUN apt-get update && apt-get install --no-install-recommends -y libxslt1.1 libhdf5-100 libboost-program-options1.65.1 libpugixml1v5 git build-essential dos2unix nano htop
 RUN mkdir -p /opt/code
 
 # Tell nano to remember its position from the last time it opened a file
 RUN echo "set positionlog" > ~/.nanorc
 
-RUN pip3 install torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip3 install git+https://github.com/mind-inria/mri-nufft@chaithyagr-patch-1 finufft scikit-image joblib git+https://github.com/mind-inria/ggrappa
+RUN pip3 install mri-nufft gpuNUFFT cufinufft cupy-cuda11x finufft scikit-image joblib git+https://github.com/mind-inria/ggrappa@openrecon nvitop
 
 # Python MRD library
 RUN pip3 install --no-cache-dir matplotlib==3.8.2 pydicom==3.0.1 

@@ -43,7 +43,6 @@ def do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_maker
         sig=torch.tensor(gridded_center).permute(0, 2, 3, 1),
         acs=torch.tensor(acs).permute(0, 2, 3, 1) if acs is not None else None,
         isGolfSparks=True,
-        cuda=False,
     )
     grappa_recon = grappa_recon.permute(0, 3, 1, 2).numpy()
     extra_loc, extra_data = get_grappa_filled_data_and_loc(gridded_center, grappa_recon, traj_params)
@@ -227,7 +226,6 @@ def process(connection, config, mrdHeader):
         for shift in ['ShiftInReadout', 'ShiftInPhase', 'ShiftInSlice']
     ])
     vol_shape = (RawMatX, RawMatY, NoOfSlice)
-    
     Kmax = np.array(vol_shape)/2/np.array(fov)
 
     logging.info("--->")
@@ -307,7 +305,7 @@ def process(connection, config, mrdHeader):
         grappa_reconstructor = partial(GRAPPA_Recon, grappa_recon_spec=grappa_recon_kernels)
         kspace_loc, kspace_data = do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_reconstructor)
     
-    fourier_op = get_operator("finufft")(
+    fourier_op = get_operator("gpunufft")(
         kspace_loc.astype(np.float32),
         vol_shape,
         n_coils=kspace_data.shape[0],
@@ -317,25 +315,46 @@ def process(connection, config, mrdHeader):
     recon_method = "adjoint"
     img = fourier_op.adj_op(kspace_data)    
     img = np.abs(img)
-    img_head = ismrmrd.ImageHeader()
-    img_head.measurement_uid = acq.measurement_uid
-    img_head.channels = 1
-    img_head.slice = 0
-    img_head.matrix_size[0] = RecoMatX
-    img_head.matrix_size[1] = RecoMatY
-    img_head.matrix_size[2] = NoOfSlice
-    for i in range(3):
-        img_head.field_of_view[i] = fov[i] * 1000
-    img_head.position = acq.position
-    img_head.read_dir = acq.read_dir
-    img_head.phase_dir = acq.phase_dir
-    img_head.slice_dir = acq.slice_dir
-    img_head.patient_table_position = acq.patient_table_position
-    img_head.acquisition_time_stamp = acq.acquisition_time_stamp
-    img_head.image_index = 0
-    img_head.image_series_index = 0
-    img_head.image_type = ismrmrd.IMTYPE_MAGNITUDE
-    img_head.data_type = ismrmrd.DATATYPE_FLOAT
-    image = ismrmrd.Image(img_head)
-    image.data[0, :] = img.T
+    
+    # Determine max value (12 or 16 bit)
+    BitsStored = 12
+    if (mrdhelper.get_userParameterLong_value(mrdHeader, "BitsStored") is not None):
+        BitsStored = mrdhelper.get_userParameterLong_value(mrdHeader, "BitsStored")
+    maxVal = 2**BitsStored - 1
+
+    # Normalize and convert to int16
+    img *= maxVal/img.max()
+    img = np.around(img).astype(np.int16)
+
+    # Format as ISMRMRD image data
+    # data has shape [RO PE], i.e. [x y].
+    # from_array() should be called with 'transpose=False' to avoid warnings, and when called
+    # with this option, can take input as: [cha z y x], [z y x], or [y x]
+    image = ismrmrd.Image.from_array(img.transpose(), acquisition=acq, transpose=False)
+    image.image_index = 1
+
+    # Set field of view
+    image.field_of_view = (ctypes.c_float(RawMatX), 
+                            ctypes.c_float(RawMatY), 
+                            ctypes.c_float(NoOfSlice))
+
+    # Set ISMRMRD Meta Attributes
+    meta = ismrmrd.Meta({'DataRole':               'Image',
+                         'ImageProcessingHistory': ['FIRE', 'PYTHON'],
+                         'WindowCenter':           str((maxVal+1)/2),
+                         'WindowWidth':            str((maxVal+1))})
+
+    # Add image orientation directions to MetaAttributes if not already present
+    if meta.get('ImageRowDir') is None:
+        meta['ImageRowDir'] = ["{:.18f}".format(image.getHead().read_dir[0]), "{:.18f}".format(image.getHead().read_dir[1]), "{:.18f}".format(image.getHead().read_dir[2])]
+
+    if meta.get('ImageColumnDir') is None:
+        meta['ImageColumnDir'] = ["{:.18f}".format(image.getHead().phase_dir[0]), "{:.18f}".format(image.getHead().phase_dir[1]), "{:.18f}".format(image.getHead().phase_dir[2])]
+
+    xml = meta.serialize()
+    logging.debug("Image MetaAttributes: %s", xml)
+    logging.debug("Image data has %d elements", image.data.size)
+
+    image.attribute_string = xml
     connection.send_image(image)
+    connection.send_close()
