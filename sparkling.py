@@ -214,7 +214,7 @@ def process(connection, config, mrdHeader):
     RecoMatY    = mrdHeader.encoding[0].reconSpace.matrixSize.y
 
     try:
-        recon_hw = config['parameters']['recon_hw']
+        recon_hw = config['parameters']['reconhw']
     except:
         recon_hw = "cpu"
 

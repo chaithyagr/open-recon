@@ -1,0 +1,70 @@
+{
+  "general": {
+    "name": { "en": "sparkrecon" },
+    "version": "8.0.0",
+    "vendor": "NeuroSpin",
+    "information": { "en": "Demo Python MRD server with image to image workflow." },
+    "id": "sparkrecon",
+      "regulatory_information":{
+        "device_trade_name":"sparkrecon",
+        "production_identifier":"8.0.0",
+        "manufacturer_address":"Saclay, France",
+        "made_in":"FR",
+        "manufacture_date":"2023/02/14",
+        "material_number":"PythonMRD_r2ci_1.0.0",
+        "gtin":"00000000000000",
+        "udi":"(00)00000000000000(00)1.0.0",
+        "safety_advices":"",
+        "special_operating_instructions":"Demo Python MRD server supporting raw to complex image workflow",
+        "additional_relevant_information":""
+  }
+  },
+  "reconstruction": {
+    "transfer_protocol": {
+      "protocol": "ISMRMRD",
+      "version": "1.4.1"
+    },
+    "port": 9002,
+    "emitter": "raw",
+    "injector": "image",
+    "can_process_adjustment_data": false,
+    "can_use_gpu": true,
+    "min_count_required_gpus": 1,
+    "min_required_gpu_memory": 15000,
+    "min_required_memory": 90960,
+    "min_count_required_cpu_cores": 16,
+    "content_qualification_type": "RESEARCH"
+  },
+  "parameters": [
+    {
+      "id": "config",
+      "type": "choice",
+      "label": { "en": "config" },
+      "values": [
+        {
+          "id": "sparkling",
+          "name": { "en": "sparkling" }
+        }
+      ],
+      "default": "sparkling",
+      "information": { "en": "Define the config to be executed by MRD server" }
+    },
+    {
+      "id": "reconhw",
+      "type": "choice",
+      "label": { "en": "Recon HW" },
+      "values": [
+        {
+          "id": "cpu",
+          "name": { "en": "CPU" }
+        },
+        {
+          "id": "gpu",
+          "name": { "en": "GPU" }
+        }
+      ],
+      "default": "cpu",
+      "information": { "en": "Where should reconstruction run" }
+    }
+  ]
+}
