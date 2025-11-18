@@ -337,7 +337,9 @@ def process(connection, config, mrdHeader):
     # data has shape [RO PE], i.e. [x y].
     # from_array() should be called with 'transpose=False' to avoid warnings, and when called
     # with this option, can take input as: [cha z y x], [z y x], or [y x]
-    image = ismrmrd.Image.from_array(img.transpose(), acquisition=acq, transpose=False)
+    image = ismrmrd.Image.from_array(img.transpose(), transpose=False)
+    image.setHead(mrdhelper.update_img_header_from_raw(image.getHead(), acq.getHead()))
+
     image.image_index = 1
 
     # Set field of view
@@ -346,10 +348,11 @@ def process(connection, config, mrdHeader):
                             ctypes.c_float(NoOfSlice))
 
     # Set ISMRMRD Meta Attributes
-    meta = ismrmrd.Meta({'DataRole':               'Image',
-                         'ImageProcessingHistory': ['FIRE', 'PYTHON'],
-                         'WindowCenter':           str((maxVal+1)/2),
-                         'WindowWidth':            str((maxVal+1))})
+    meta = ismrmrd.Meta()
+    meta['DataRole']                       = 'Image'
+    meta['ImageProcessingHistory']         = ['OPENRECON', 'PYTHON']
+    meta['SequenceDescriptionAdditional']  = 'OPENRECON'
+    meta['Keep_image_geometry']            = 1
 
     # Add image orientation directions to MetaAttributes if not already present
     if meta.get('ImageRowDir') is None:
