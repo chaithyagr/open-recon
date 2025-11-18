@@ -343,10 +343,12 @@ def process(connection, config, mrdHeader):
     image.image_index = 1
 
     # Set field of view
-    image.field_of_view = (ctypes.c_float(RawMatX), 
-                            ctypes.c_float(RawMatY), 
-                            ctypes.c_float(NoOfSlice))
-
+    image.field_of_view = (
+        ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.x), 
+        ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.y), 
+        ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.z)
+    )
+    
     # Set ISMRMRD Meta Attributes
     meta = ismrmrd.Meta()
     meta['DataRole']                       = 'Image'
