@@ -1,13 +1,13 @@
 {
   "general": {
-    "name": { "en": "sparkrecon" },
-    "version": "8.0.0",
+    "name": { "en": "gpusparkrecon" },
+    "version": "9.0.0",
     "vendor": "NeuroSpin",
     "information": { "en": "Demo Python MRD server with image to image workflow." },
     "id": "sparkrecon",
       "regulatory_information":{
         "device_trade_name":"sparkrecon",
-        "production_identifier":"8.0.0",
+        "production_identifier":"9.0.0",
         "manufacturer_address":"Saclay, France",
         "made_in":"FR",
         "manufacture_date":"2023/02/14",

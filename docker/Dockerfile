@@ -39,8 +39,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y git build-essential libxslt1.1 libhdf5-103 libboost-program-options1.74.0 libpugixml1v5 dos2unix
 
 # Install Python packages that require CUDA to compile
-RUN pip3 install mri-nufft gpuNUFFT cufinufft finufft cupy-cuda11x \
-                 finufft scikit-image joblib git+https://github.com/mind-inria/ggrappa@openrecon nvitop && \
+RUN pip3 install mri-nufft gpuNUFFT cufinufft finufft  --no-binary cufinufft 
+RUN pip3 install cupy-cuda11x finufft scikit-image joblib git+https://github.com/mind-inria/ggrappa@openrecon nvitop && \
     pip3 install matplotlib==3.8.2 pydicom==3.0.1 h5py==3.10.0 ismrmrd==1.14.1
 
 # Install ISMRMRD Python tools
