@@ -232,6 +232,9 @@ def process(connection, config, mrdHeader):
         for shift in ['ShiftInReadout', 'ShiftInPhase', 'ShiftInSlice']
     ])
     vol_shape = (RawMatX, RawMatY, NoOfSlice)
+    # vol_shape = (256, 256, 176)
+    # fov = (0.256, 0.256, 0.176)
+
     Kmax = np.array(vol_shape)/2/np.array(fov)
 
     logging.info("--->")
@@ -311,62 +314,140 @@ def process(connection, config, mrdHeader):
     if np.prod(af) > 1:
         grappa_reconstructor = partial(GRAPPA_Recon, grappa_recon_spec=grappa_recon_kernels)
         kspace_loc, kspace_data = do_grappa_and_append_data(kspace_loc, kspace_data, traj_params, grappa_reconstructor, recon_hw=recon_hw)
-    
     fourier_op = get_operator("finufft" if recon_hw == "cpu" else "gpunufft")(
         kspace_loc.astype(np.float32),
         vol_shape,
         n_coils=kspace_data.shape[0],
         density=density_comp,
-        smaps={"name": "low_frequency", "kspace_data": kspace_data}
+        smaps={"name": "low_frequency", "kspace_data": kspace_data, "max_iter": 1},
     )
     recon_method = "adjoint"
     img = fourier_op.adj_op(kspace_data)    
     img = np.abs(img)
-    
     # Determine max value (12 or 16 bit)
     BitsStored = 12
     if (mrdhelper.get_userParameterLong_value(mrdHeader, "BitsStored") is not None):
         BitsStored = mrdhelper.get_userParameterLong_value(mrdHeader, "BitsStored")
     maxVal = 2**BitsStored - 1
-
     # Normalize and convert to int16
     img *= maxVal/img.max()
     img = np.around(img).astype(np.int16)
 
-    # Format as ISMRMRD image data
-    # data has shape [RO PE], i.e. [x y].
-    # from_array() should be called with 'transpose=False' to avoid warnings, and when called
-    # with this option, can take input as: [cha z y x], [z y x], or [y x]
-    image = ismrmrd.Image.from_array(img.transpose(), transpose=False)
-    image.setHead(mrdhelper.update_img_header_from_raw(image.getHead(), acq.getHead()))
+    send_as_3d_image = False
 
-    image.image_index = 1
+    if send_as_3d_image:
+        # Format as ISMRMRD image data
+        # data has shape [RO PE], i.e. [x y].
+        # from_array() should be called with 'transpose=False' to avoid warnings, and when called
+        # with this option, can take input as: [cha z y x], [z y x], or [y x]
+        image = ismrmrd.Image.from_array(img.transpose(), transpose=False)
+        image.setHead(mrdhelper.update_img_header_from_raw(image.getHead(), acq.getHead()))
 
-    # Set field of view
-    image.field_of_view = (
-        ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.x), 
-        ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.y), 
-        ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.z)
-    )
+        image.image_index = 1
+
+        # Set field of view
+        image.field_of_view = (
+            ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.x), 
+            ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.y), 
+            ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.z)
+        )
     
-    # Set ISMRMRD Meta Attributes
-    meta = ismrmrd.Meta()
-    meta['DataRole']                       = 'Image'
-    meta['ImageProcessingHistory']         = ['OPENRECON', 'PYTHON']
-    meta['SequenceDescriptionAdditional']  = 'OPENRECON'
-    meta['Keep_image_geometry']            = 1
+        # Set ISMRMRD Meta Attributes
+        meta = ismrmrd.Meta()
+        meta['DataRole']                       = 'Image'
+        meta['ImageProcessingHistory']         = ['OPENRECON', 'PYTHON']
+        meta['SequenceDescriptionAdditional']  = 'OPENRECON'
+        meta['Keep_image_geometry']            = 1
 
-    # Add image orientation directions to MetaAttributes if not already present
-    if meta.get('ImageRowDir') is None:
-        meta['ImageRowDir'] = ["{:.18f}".format(image.getHead().read_dir[0]), "{:.18f}".format(image.getHead().read_dir[1]), "{:.18f}".format(image.getHead().read_dir[2])]
+        # Add image orientation directions to MetaAttributes if not already present
+        if meta.get('ImageRowDir') is None:
+            meta['ImageRowDir'] = ["{:.18f}".format(image.getHead().read_dir[0]), "{:.18f}".format(image.getHead().read_dir[1]), "{:.18f}".format(image.getHead().read_dir[2])]
 
-    if meta.get('ImageColumnDir') is None:
-        meta['ImageColumnDir'] = ["{:.18f}".format(image.getHead().phase_dir[0]), "{:.18f}".format(image.getHead().phase_dir[1]), "{:.18f}".format(image.getHead().phase_dir[2])]
+        if meta.get('ImageColumnDir') is None:
+            meta['ImageColumnDir'] = ["{:.18f}".format(image.getHead().phase_dir[0]), "{:.18f}".format(image.getHead().phase_dir[1]), "{:.18f}".format(image.getHead().phase_dir[2])]
 
-    xml = meta.serialize()
-    logging.debug("Image MetaAttributes: %s", xml)
-    logging.debug("Image data has %d elements", image.data.size)
+        xml = meta.serialize()
+        logging.debug("Image MetaAttributes: %s", xml)
+        logging.debug("Image data has %d elements", image.data.size)
 
-    image.attribute_string = xml
-    connection.send_image(image)
+        image.attribute_string = xml
+        connection.send_image(image)
+
+    else:
+        # 1. Get geometry info from the acquisition header
+        # We use the position and orientation of the first acquisition as a base
+        base_head = acq.getHead()
+        nx, ny, nz = img.shape
+
+        # Calculate slice spacing/thickness
+        slice_thickness = fov[-1] / nz * 1000
+
+        for z in range(nz):
+            # --- 1. Prepare Data ---
+            # Extract the 2D slice [RO, PE] -> [y, x]
+            # ISMRMRD from_array(transpose=False) expects [cha, z, y, x]
+            # For a single 2D slice, shape is [1, 1, PE, RO]
+            slice_data = img[:, :, z].transpose() 
+            slice_data = slice_data[np.newaxis, np.newaxis, :, :] 
+
+            image = ismrmrd.Image.from_array(slice_data, transpose=False)
+
+            # --- 2. Update Header ---
+            # Start with a header derived from the raw acquisition
+            header = mrdhelper.update_img_header_from_raw(image.getHead(), base_head)
+
+            # Update slice-specific parameters
+            header.slice = z
+            header.image_index = z + 1
+            header.image_series_index = 1 
+
+            # Update Position (LPH): Shift the slice position along the slice-normal direction
+            # slice_dir is the 'slice selection' or 'normal' vector (read x phase cross product)
+            # Most mrdhelpers calculate this, but we ensure it here:
+            dir_read = np.array(base_head.read_dir)
+            dir_phase = np.array(base_head.phase_dir)
+            dir_slice = np.cross(dir_read, dir_phase)
+
+            # Calculate offset for this specific slice relative to the center/start
+            # This shifts the center of the volume to the specific slice position
+            origin = np.array(base_head.position)
+            offset = (z - (nz - 1) / 2.0) * slice_thickness
+            slice_position = origin + offset * dir_slice
+
+            header.position = (
+                ctypes.c_float(slice_position[0]),
+                ctypes.c_float(slice_position[1]),
+                ctypes.c_float(slice_position[2])
+            )
+
+            # Set Field of View for the slice (Z is now the thickness of one slice)
+            image.field_of_view = (
+                ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.x),
+                ctypes.c_float(mrdHeader.encoding[0].reconSpace.fieldOfView_mm.y),
+                ctypes.c_float(slice_thickness)
+            )
+
+            image.setHead(header)
+
+            # --- 3. Meta Attributes ---
+            meta = ismrmrd.Meta()
+            meta['DataRole'] = 'Image'
+            meta['ImageProcessingHistory'] = ['OPENRECON', 'PYTHON']
+            meta['Keep_image_geometry'] = 1
+
+            # Ensure orientation is in Meta for compatibility
+            meta['ImageRowDir'] = ["{:.18f}".format(base_head.read_dir[0]), 
+                                "{:.18f}".format(base_head.read_dir[1]), 
+                                "{:.18f}".format(base_head.read_dir[2])]
+            meta['ImageColumnDir'] = ["{:.18f}".format(base_head.phase_dir[0]), 
+                                    "{:.18f}".format(base_head.phase_dir[1]), 
+                                    "{:.18f}".format(base_head.phase_dir[2])]
+
+            image.attribute_string = meta.serialize()
+
+            # --- 4. Send ---
+            logging.info(f"Sending slice {z}/{nz} at position {slice_position}")
+            connection.send_image(image)
+
+    logging.info("Reconstruction complete, closing connection.") 
     connection.send_close()

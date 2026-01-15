@@ -68,7 +68,7 @@ COPY --from=mrd_converter /usr/local/bin/siemens_to_ismrmrd /usr/local/bin/sieme
 
 # Runtime dependencies only
 RUN apt-get update && apt-get install --no-install-recommends -y \
-    libxslt1.1 libhdf5-103 libboost-program-options1.74.0 libpugixml1v5 git dos2unix nano htop && \
+    libxslt1.1 libhdf5-103 libboost-program-options1.74.0 libpugixml1v5 git dos2unix nano htop vim gcc && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy all built Python packages from builder
